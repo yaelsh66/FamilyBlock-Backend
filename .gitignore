@@ -1,0 +1,38 @@
+# ===== Build output =====
+target/
+build/
+out/
+
+# ===== IDE files =====
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.vscode/
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+
+# ===== Logs =====
+*.log
+
+# ===== Environment / secrets =====
+.env
+application-local.yml
+application.properties
+application-local.properties
+src/main/resources/firebase/*.json
+
+# ===== Compiled files =====
+*.class
+
+# ===== Test reports =====
+surefire-reports/
+# Firebase secrets
+serviceAccountKey.json
+firebase-adminsdk*.json
+.env
