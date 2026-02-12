@@ -10,5 +10,11 @@ public interface TaskTemplateRepository extends JpaRepository<TaskTemplate, Long
 
 	public List<TaskTemplate> findAllByFamily_id(Long familyId);
 	
-	public List<TaskTemplate> findAllByOwner_id(Long userId);
+	public List<TaskTemplate> findAllByUser_id(Long userId);
+
+	public TaskTemplate findByFamily_id(Long id);
+	
+	public TaskTemplate findByIdAndFamily_Id(Long id, Long familyId);
+	
+	public List<TaskTemplate> findAllByFamilyIdAndActive(Long familyId, Boolean active);
 }

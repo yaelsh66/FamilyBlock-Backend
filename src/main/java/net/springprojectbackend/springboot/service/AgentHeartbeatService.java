@@ -38,20 +38,11 @@ public class AgentHeartbeatService {
         this.blockConfigParser = blockConfigParser;
     }
 
-    /**
-     * Handles a heartbeat.
-     *
-     * Steps:
-     * 1) Authenticate deviceId + deviceSecret
-     * 2) Get child
-     * 3) Load TimeBalance (authoritative minutes)
-     * 4) Deduct minutes if requested
-     * 5) Clamp at 0 and force isRunning=false if no time left
-     * 6) Return true remaining + block lists
-     */
     @Transactional
     public AgentHeartbeatResponse handleHeartbeat(AgentHeartbeatRequest req) {
 
+    	System.out.println("@@@@@@@@@@@@@@@@@@@@ req.deviceId: " + req.deviceId + 
+    			"$$$$$$$$$$$$$$ req.deviceSecret: " + req.deviceSecret);
         // 1) Find device
         Device device = deviceRepository.findByDeviceId(req.deviceId)
                 .orElseThrow(() -> new AgentAuthException("Unknown deviceId: " + req.deviceId));
@@ -65,52 +56,119 @@ public class AgentHeartbeatService {
         FamilyMember child = device.getChild();
 
         // 4) Load (or create) TimeBalance
-        TimeBalance balance = timeBalanceRepository.findByChild(child);
-                if(balance == null) {
-                    TimeBalance b = new TimeBalance();
-                    b.setChild(child);
-                    b.setTotalTimeInMinutes(0);
-                    b.setLastUpdate(LocalDateTime.now());
-                    timeBalanceRepository.save(b);
-                }
-
-        // Keep track of authoritative minutes
-        int available = balance.getTotalTimeInMinutes() == null ? 0 : balance.getTotalTimeInMinutes();
-        
-        if(available > 0 && Boolean.TRUE.equals(device.getLastIsRunning()) && req.isRunning) {
-        	
-        	int deduct = Math.min(req.minutesToReduce, 1);
-        	available = available - deduct;
+        TimeBalance timeBalance = timeBalanceRepository.findByChild(child);
+        if (timeBalance == null) {
+            TimeBalance b = new TimeBalance();
+            b.setChild(child);
+            b.setTotalTimeInMinutes(0);
+            b.setLastUpdate(LocalDateTime.now());
+            timeBalanceRepository.save(b);
+            timeBalance = b;
         }
+
+        BlockConfig blockCfg = blockConfigRepository.findByChild(child).orElse(null);
+
+        // ----------------------------
+        // NEW STRUCTURE
+        // ----------------------------
+
+        List<String> blockedApps =
+                blockConfigParser.parseJsonArray(
+                        blockCfg == null ? null : blockCfg.getBlockedAppsJson());
+
+        List<String> permanentWebsites =
+                blockConfigParser.parseJsonArray(
+                        blockCfg == null ? null : blockCfg.getBlockedPermanentWebsitesJson());
+
+        List<String> dynamicWebsites =
+                blockConfigParser.parseJsonArray(
+                        blockCfg == null ? null : blockCfg.getBlockedWebsitesJson()); // reuse old field for dynamic
+
+        Boolean rewritePermanentWebsites =
+                blockCfg == null ? Boolean.FALSE : blockCfg.getRewritePermanentWebsites();
+
+        int available = timeBalance.getTotalTimeInMinutes() == null
+                ? 0
+                : timeBalance.getTotalTimeInMinutes();
         
-        if(available <= 0 ) {
+
+        // Parent block
+        if (timeBalance.getParentBlock()) {
+            return new AgentHeartbeatResponse(
+                    false,
+                    available,
+                    blockedApps,
+                    permanentWebsites,
+                    dynamicWebsites,
+                    rewritePermanentWebsites
+            );
+        }
+
+        // Schedule block
+        if (timeBalance.getScheduleBlock()) {
+            return new AgentHeartbeatResponse(
+                    false,
+                    available,
+                    blockedApps,
+                    permanentWebsites,
+                    dynamicWebsites,
+                    rewritePermanentWebsites
+            );
+        }
+
+        int withdrawTime = timeBalance.getWithdrawTime();
+        int deduct = Math.min(req.minutesToReduce, 1);
+
+        if (withdrawTime > 0
+                && Boolean.TRUE.equals(timeBalance.getIsRunning())
+                && req.isRunning) {
+
+            withdrawTime -= deduct;
+            timeBalance.setWithdrawTime(withdrawTime);
+            timeBalance.setWithdrawTimeUsed(
+                    timeBalance.getWithdrawTimeUsed() + deduct);
+        }
+
+        if(timeBalance.getDailyTimeInMinutes() != null && timeBalance.getDailyTimeInMinutes() > 0) {
+        	timeBalance.setDailyTimeInMinutes(timeBalance.getDailyTimeInMinutes() - deduct);
+        }else {
+        	if (available > 0
+                    && Boolean.TRUE.equals(timeBalance.getIsRunning())
+                    && req.isRunning) {
+
+                available -= deduct;
+            }
+        	
+        }
+             
+
+        if (withdrawTime <= 0) {
+            timeBalance.setIsRunning(false);
+        }
+
+        if(timeBalance.getDailyTimeInMinutes() <= 0 && available <= 0) {
+        	timeBalance.setDailyTimeInMinutes(0);
         	available = 0;
-        	device.setLastIsRunning(false);
+            timeBalance.setIsRunning(false);
         }
         
         device.setLastHeartbeatAt(LocalDateTime.now());
         deviceRepository.save(device);
-        
-        balance.setTotalTimeInMinutes(available);
-        balance.setLastUpdate(LocalDateTime.now());
-        timeBalanceRepository.save(balance);
-       
-	        	        
-        // 8) Load blocking rules (if missing, treat as empty)
-        BlockConfig blockCfg = blockConfigRepository.findByChild(child).orElse(null);
 
-        List<String> blockedApps = blockConfigParser.parseJsonArray(blockCfg == null ? null : blockCfg.getBlockedAppsJson());
-        List<String> blockedBrowserApps = blockConfigParser.parseJsonArray(blockCfg == null ? null : blockCfg.getBlockedBrowserAppsJson());
-        List<String> blockedWebsites = blockConfigParser.parseJsonArray(blockCfg == null ? null : blockCfg.getBlockedWebsitesJson());
-        
+        timeBalance.setTotalTimeInMinutes(available);
+        timeBalance.setLastUpdate(LocalDateTime.now());
+        timeBalanceRepository.save(timeBalance);
+
         return new AgentHeartbeatResponse(
-        		device.getLastIsRunning(),
-        		available,
+                timeBalance.getIsRunning(),
+                available,
                 blockedApps,
-                blockedBrowserApps,
-                blockedWebsites
+                permanentWebsites,
+                dynamicWebsites,
+                rewritePermanentWebsites
         );
     }
+
     
     //TODO - Update TimeSession, TimeTransaction
 }

@@ -1,6 +1,8 @@
 package net.springprojectbackend.springboot.model;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,16 +14,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "family_task_instance")
-public class TaskInstance {
+@Table(name="weekly_task")
+public class WeeklyTask {
 
-	public enum TaskStatus {
-	    CREATED,
-	    SUBMITTED,
-	    APPROVED,
-	    REJECTED
-	}
-	
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -31,7 +26,7 @@ public class TaskInstance {
 	private TaskTemplate taskTemplate;
 	
 	@ManyToOne(optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "child_id", nullable = false)
 	private FamilyMember familyMember;
 	
 	@Column(nullable = false)
@@ -42,21 +37,31 @@ public class TaskInstance {
 	@Column(nullable = false)
 	private Integer minutesReward;
 	
-	private String parentComment;	
-	private String childComment;
+	private List<String> days;
+	
+	private LocalTime toDoAt;
+	
+	private String today;
+	
+	private Boolean wasCompleteToday;
 	
 	private LocalDateTime createdAt;
-    private LocalDateTime submittedAt;
-    private LocalDateTime approvedAt;
-    
-	private TaskStatus status;
-
+	
+	
 	public Long getId() {
 		return id;
 	}
 
 	public void setId(Long id) {
 		this.id = id;
+	}
+
+	public TaskTemplate getTaskTemplate() {
+		return taskTemplate;
+	}
+
+	public void setTaskTemplate(TaskTemplate taskTemplate) {
+		this.taskTemplate = taskTemplate;
 	}
 
 	public FamilyMember getFamilyMember() {
@@ -67,14 +72,6 @@ public class TaskInstance {
 		this.familyMember = familyMember;
 	}
 
-	public TaskTemplate getTaskTemplate() {
-		return taskTemplate;
-	}
-
-	public void setTaskTemplate(TaskTemplate taskTemplate) {
-		this.taskTemplate = taskTemplate;
-	}
-	
 	public String getTitle() {
 		return title;
 	}
@@ -99,20 +96,36 @@ public class TaskInstance {
 		this.minutesReward = minutesReward;
 	}
 
-	public String getParentComment() {
-		return parentComment;
+	public List<String> getDays() {
+		return days;
 	}
 
-	public void setParentComment(String parentComment) {
-		this.parentComment = parentComment;
+	public void setDays(List<String> days) {
+		this.days = days;
 	}
 
-	public String getChildComment() {
-		return childComment;
+	public LocalTime getToDoAt() {
+		return toDoAt;
 	}
 
-	public void setChildComment(String childComment) {
-		this.childComment = childComment;
+	public void setToDoAt(LocalTime toDoAt) {
+		this.toDoAt = toDoAt;
+	}
+
+	public String getToday() {
+		return today;
+	}
+
+	public void setToday(String today) {
+		this.today = today;
+	}
+
+	public Boolean getWasCompleateToday() {
+		return wasCompleteToday;
+	}
+
+	public void setWasCompleateToday(Boolean wasCompleateToday) {
+		this.wasCompleteToday = wasCompleateToday;
 	}
 
 	public LocalDateTime getCreatedAt() {
@@ -123,28 +136,5 @@ public class TaskInstance {
 		this.createdAt = createdAt;
 	}
 
-	public LocalDateTime getSubmittedAt() {
-		return submittedAt;
-	}
-
-	public void setSubmittedAt(LocalDateTime submittedAt) {
-		this.submittedAt = submittedAt;
-	}
-
-	public LocalDateTime getApprovedAt() {
-		return approvedAt;
-	}
-
-	public void setApprovedAt(LocalDateTime approvedAt) {
-		this.approvedAt = approvedAt;
-	}
-
-	public TaskStatus getStatus() {
-		return status;
-	}
-
-	public void setStatus(TaskStatus status) {
-		this.status = status;
-	}
 	
 }

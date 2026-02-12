@@ -6,9 +6,14 @@ public class AgentHeartbeatResponse {
 
     public boolean isRunning;
     public int remainingMinutes;
+
     public List<String> blockedApps;
-    public List<String> blockedBrowserApps;
-    public List<String> blockedWebsites;
+
+    // New structure
+    public List<String> permanentWebsites;
+    public List<String> dynamicWebsites;
+
+    public Boolean rewritePermanentWebsites;
 
     // Default constructor required by Jackson
     public AgentHeartbeatResponse() {}
@@ -17,13 +22,15 @@ public class AgentHeartbeatResponse {
             boolean isRunning,
             int remainingMinutes,
             List<String> blockedApps,
-            List<String> blockedBrowserApps,
-            List<String> blockedWebsites) {
+            List<String> permanentWebsites,
+            List<String> dynamicWebsites,
+            Boolean rewritePermanentWebsites) {
 
         this.isRunning = isRunning;
         this.remainingMinutes = remainingMinutes;
         this.blockedApps = blockedApps;
-        this.blockedBrowserApps = blockedBrowserApps;
-        this.blockedWebsites = blockedWebsites;
+        this.permanentWebsites = permanentWebsites;
+        this.dynamicWebsites = dynamicWebsites;
+        this.rewritePermanentWebsites = rewritePermanentWebsites;
     }
 }

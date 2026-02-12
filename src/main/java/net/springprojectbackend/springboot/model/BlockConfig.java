@@ -34,6 +34,11 @@ public class BlockConfig {
 
     @Column(columnDefinition = "TEXT")
     private String blockedWebsitesJson;
+    
+    @Column(columnDefinition = "TEXT")
+    private String blockedPermanentWebsitesJson;
+    
+    private Boolean rewritePermanentWebsites=false;
 
 	public Long getId() {
 		return id;
@@ -73,6 +78,22 @@ public class BlockConfig {
 
 	public void setBlockedWebsitesJson(String blockedWebsitesJson) {
 		this.blockedWebsitesJson = blockedWebsitesJson;
+	}
+
+	public String getBlockedPermanentWebsitesJson() {
+		return blockedPermanentWebsitesJson;
+	}
+
+	public void setBlockedPermanentWebsitesJson(String blockedPermanentWebsitesJson) {
+		this.blockedPermanentWebsitesJson = blockedPermanentWebsitesJson;
+	}
+
+	public Boolean getRewritePermanentWebsites() {
+		return rewritePermanentWebsites;
+	}
+
+	public void setRewritePermanentWebsites(Boolean rewritePermanentWebsites) {
+		this.rewritePermanentWebsites = rewritePermanentWebsites;
 	}
     
     

@@ -1,5 +1,6 @@
 package net.springprojectbackend.springboot.model;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -31,13 +32,46 @@ public class TimeBalance {
 	@Column(nullable = false)
 	private Integer totalTimeInMinutes = 0;
 	
+	@Column
+	private Integer dailyTimeInMinutes = 0;
+	
 	@Column(nullable = false)
 	private Integer pendingTimeInMinutes = 0;
+	
+	private Integer withdrawTime = 0;
+	
+	private Integer withdrawTimeUsed = 0;
+	
+	@Column(nullable = false)
+	private Boolean parentBlock = false;
+	
+	@Column(nullable = false)
+	private Boolean scheduleBlock = false;
 	
 	@Column(nullable = false)
 	private Boolean isRunning = false;
 	
 	private LocalDateTime lastUpdate;
+
+	private LocalDate dailyTimeLastUpdate;
+	
+	
+	
+	public Boolean getParentBlock() {
+		return parentBlock;
+	}
+
+	public void setParentBlock(Boolean parentBlock) {
+		this.parentBlock = parentBlock;
+	}
+
+	public Boolean getScheduleBlock() {
+		return scheduleBlock;
+	}
+
+	public void setScheduleBlock(Boolean scheduleBlock) {
+		this.scheduleBlock = scheduleBlock;
+	}
 
 	public Boolean getIsRunning() {
 		return isRunning;
@@ -85,6 +119,38 @@ public class TimeBalance {
 
 	public void setLastUpdate(LocalDateTime lastUpdate) {
 		this.lastUpdate = lastUpdate;
+	}
+
+	public Integer getWithdrawTime() {
+		return withdrawTime;
+	}
+
+	public void setWithdrawTime(Integer withdrawTime) {
+		this.withdrawTime = withdrawTime;
+	}
+
+	public Integer getWithdrawTimeUsed() {
+		return withdrawTimeUsed;
+	}
+
+	public void setWithdrawTimeUsed(Integer withdrawTimeUsed) {
+		this.withdrawTimeUsed = withdrawTimeUsed;
+	}
+
+	public LocalDate getDailyTimeLastUpdate() {
+		return dailyTimeLastUpdate;
+	}
+
+	public void setDailyTimeLastUpdate(LocalDate dailyTimeLastUpdate) {
+		this.dailyTimeLastUpdate = dailyTimeLastUpdate;
+	}
+
+	public Integer getDailyTimeInMinutes() {
+		return dailyTimeInMinutes;
+	}
+
+	public void setDailyTimeInMinutes(Integer dailyTimeInMinutes) {
+		this.dailyTimeInMinutes = dailyTimeInMinutes;
 	}
 	
 	

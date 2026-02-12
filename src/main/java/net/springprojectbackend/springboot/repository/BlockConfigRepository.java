@@ -11,4 +11,6 @@ import net.springprojectbackend.springboot.model.FamilyMember;
 public interface BlockConfigRepository extends JpaRepository<BlockConfig, Long>{
 
 	Optional<BlockConfig> findByChild(FamilyMember child);
+	
+	BlockConfig findByChild_id(Long child);
 }

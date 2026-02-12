@@ -14,7 +14,6 @@ import net.springprojectbackend.springboot.dto.AgentHeartbeatRequest;
 import net.springprojectbackend.springboot.dto.AgentHeartbeatResponse;
 import net.springprojectbackend.springboot.model.Device;
 import net.springprojectbackend.springboot.repository.DeviceRepository;
-import net.springprojectbackend.springboot.security.AgentService;
 import net.springprojectbackend.springboot.service.AgentHeartbeatService;
 
 @RestController
@@ -31,6 +30,7 @@ public class AgentController {
 	@PostMapping("/heartbeat")
 	public ResponseEntity<AgentHeartbeatResponse> heartbeat(@RequestBody AgentHeartbeatRequest req) {
         //Test without validation!!!!
+		
         AgentHeartbeatResponse resp = agentService.handleHeartbeat(req);
         return new ResponseEntity<>(resp, HttpStatus.OK);
     }

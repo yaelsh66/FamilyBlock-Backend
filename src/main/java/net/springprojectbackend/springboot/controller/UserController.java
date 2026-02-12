@@ -75,10 +75,12 @@ public class UserController {
         user.setFirebaseUid(firebaseUid);
         user.setEmail(email);
         user.setNickname((String) body.get("nickname"));
+        user.setFirstName((String) body.get("name"));
         userRepository.save(user);
 
         familyMember.setFamily(family);
         familyMember.setUser(user);
+        familyMember.setFirebaseUid(firebaseUid);
         String roleStr = (String) body.get("role");
         UserRole role = UserRole.valueOf(roleStr.toUpperCase());
 

@@ -10,8 +10,10 @@ import net.springprojectbackend.springboot.model.AppUser;
 
 public interface FamilyMemberRepository extends JpaRepository<FamilyMember, Long>{
 
-	FamilyMember findByUser(AppUser user);
-	FamilyMember findByFirebaseUid(String uid);
+	public FamilyMember findByUser(AppUser user);
+	public FamilyMember findByFirebaseUid(String uid);
+	public List<FamilyMember> findAllByFamily_id(Long familyId);
+	public List<FamilyMember> findAllByFamilyIdAndRole(Long familyId, UserRole role);
 	
 
 }

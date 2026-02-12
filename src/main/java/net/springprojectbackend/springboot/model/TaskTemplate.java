@@ -23,7 +23,7 @@ public class TaskTemplate {
 	
 	@ManyToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-	private FamilyMember owner;
+	private FamilyMember user;
 	
 	@Column(nullable = false)
 	private String title;
@@ -36,6 +36,8 @@ public class TaskTemplate {
 	@Column(nullable = false)
 	private Boolean active = true;
 
+	
+	
 	public Long getId() {
 		return id;
 	}
@@ -52,12 +54,12 @@ public class TaskTemplate {
 		this.family = family;
 	}
 
-	public FamilyMember getOwner() {
-		return owner;
+	public FamilyMember getUser() {
+		return user;
 	}
 
-	public void setOwner(FamilyMember owner) {
-		this.owner = owner;
+	public void setUser(FamilyMember owner) {
+		this.user = owner;
 	}
 
 	public String getTitle() {

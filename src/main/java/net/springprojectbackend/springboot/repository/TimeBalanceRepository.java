@@ -11,4 +11,6 @@ import net.springprojectbackend.springboot.model.TimeBalance;
 public interface TimeBalanceRepository extends JpaRepository<TimeBalance, Long> {
 
 	TimeBalance findByChild(FamilyMember child);
+	
+	TimeBalance findByChild_Id(Long id);
 }

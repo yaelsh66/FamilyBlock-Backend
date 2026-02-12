@@ -50,9 +50,9 @@ public class AuthController {
 		Family family = familyMember.getFamily();
 		TimeBalance time = timeBalanceRepository.findByChild(familyMember);
 		
-		UserLoginResponse response = new UserLoginResponse(familyMember.getRole(), family.getId(),
+		UserLoginResponse response = new UserLoginResponse(familyMember.getId(),  familyMember.getRole(), family.getId(),
 				user.getBackgroundImage(), user.getBackgroundColor(), time.getTotalTimeInMinutes(),
-				time.getPendingTimeInMinutes(), user.getNickname());
+				time.getPendingTimeInMinutes(), user.getNickname(), user.getFirstName());
 		
 		System.out.println("responseBODY = " + response);
 		return ResponseEntity.ok(response);
@@ -70,13 +70,13 @@ public class AuthController {
 		if(req.backgroundColor() != null) {
 			user.setBackgroundColor(req.backgroundColor());
 		}
-		if(req.backgroundImage() != null) {
-			user.setBackgroundImage(req.backgroundImage());
-		}
+		
 		if(req.nickname() != null) {
 			user.setNickname(req.nickname());
 		}
-		
+		if(req.name() != null) {
+			user.setFirstName(req.name());
+		}
 		userRepository.save(user);
 		
 		return ResponseEntity.noContent().build();
