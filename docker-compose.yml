@@ -1,0 +1,86 @@
+# Local development stack for Family Block.
+#
+# Start from this directory:
+#   docker compose up --build
+#
+# Or start from the workspace root:
+#   docker compose -f FamilyBlock-Backend/docker-compose.yml up --build
+#
+# This file expects the frontend and backend repositories to be siblings:
+# - ./FamilyBlock-Frontend
+# - ./FamilyBlock-Backend
+#
+# Requirements:
+# - Copy FamilyBlock-Frontend/.env.example to FamilyBlock-Frontend/.env
+# - Copy FamilyBlock-Backend/.env.example to FamilyBlock-Backend/.env
+# - Provide Firebase Admin credentials in the backend env file before starting.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: family-block-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: family_block
+      POSTGRES_USER: family_block
+      POSTGRES_PASSWORD: family_block
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U family_block -d family_block"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: maven:3.9.9-eclipse-temurin-21
+    container_name: family-block-backend
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    env_file:
+      - ./.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PORT: 8081
+      SERVER_ADDRESS: 0.0.0.0
+      DATABASE_URL: jdbc:postgresql://postgres:5432/family_block
+      DATABASE_USERNAME: family_block
+      DB_PASSWORD: family_block
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      DOWNLOADS_PATH: /workspace/backend/downloads
+      DOWNLOADS_UI_PATH: /workspace/backend/downloads
+      DOWNLOADS_AGENT_INSTALLER_PATH: /workspace/backend/downloads
+    ports:
+      - "8081:8081"
+    volumes:
+      - .:/workspace/backend
+      - maven-cache:/root/.m2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: bash -lc "bash ./mvnw spring-boot:run"
+
+  frontend:
+    image: node:22-alpine
+    container_name: family-block-frontend
+    restart: unless-stopped
+    working_dir: /workspace/frontend
+    env_file:
+      - ../FamilyBlock-Frontend/.env
+    environment:
+      VITE_BACKEND_URL: http://localhost:8081
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../FamilyBlock-Frontend:/workspace/frontend
+      - frontend-node-modules:/workspace/frontend/node_modules
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+volumes:
+  postgres-data:
+  maven-cache:
+  frontend-node-modules:
