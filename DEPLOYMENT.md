@@ -1,167 +1,116 @@
 # Deployment Guide
 
-This project is split into separate repositories inside one folder:
+Separate repos, same folder:
 
 - `FamilyBlock-Frontend`: Vite + React frontend
 - `FamilyBlock-Backend`: Spring Boot + PostgreSQL backend
-- `FamilyBlock-Agent`: Windows service installed on child devices
+- `FamilyBlock-Agent`: Windows service on child devices
 
-## Frontend
+## Recommended Free Demo Stack
 
-The frontend can run on Vercel as a static Vite application.
+- Frontend: Vercel
+- Backend: Render Web Service
+- Database: Supabase Postgres
+- Agent: local Windows install
 
-Recommended Vercel settings:
+Supabase = Postgres only. Not the Java backend.
 
-- Root directory: `FamilyBlock-Frontend`
-- Build command: `npm run build`
-- Output directory: `dist`
+## Deploy Order
 
-Set these environment variables in Vercel:
+1. Supabase Postgres
+2. Firebase (client auth + Admin SDK)
+3. Render backend
+4. Copy Render backend URL
+5. Vercel frontend
+6. Update Render `CORS_ALLOWED_ORIGINS`
+7. Restart/redeploy backend
+8. Windows agent on child devices
 
-```env
-VITE_BACKEND_URL=https://your-backend.onrender.com
-VITE_FIREBASE_API_KEY=your-firebase-web-api-key
-VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
-VITE_YOUTUBE_API_KEY=optional-youtube-api-key
-```
+---
 
-`VITE_*` variables are included in the browser bundle. Do not put server secrets in them.
+## 1. Database (Supabase)
 
-## Can The Backend Run On Vercel?
-
-Not as-is.
-
-The backend is a traditional Spring Boot server. It expects an always-on JVM process, a PostgreSQL connection pool, in-process scheduled jobs, async background work, and local paths for Firebase/download artifacts. Vercel is best suited here for the frontend and for serverless functions, not for this current backend shape.
-
-The main blockers are:
-
-- `@EnableScheduling` and `@Scheduled` jobs need a process that stays alive.
-- The backend is a Java web server, not a Vercel Function or Next.js route handler.
-- Free/serverless execution can stop between requests, so in-memory schedulers and async jobs are not reliable.
-- Firebase Admin credentials and downloadable ZIP artifacts need to be provided as env/secret files or moved to object storage.
-
-To run this backend on Vercel, you would need a larger rewrite: convert API routes to Vercel-compatible functions, move scheduled work to Vercel Cron or a worker, and move persistent files to storage such as Vercel Blob, S3, or Supabase Storage.
-
-## Recommended Free Demo Deployment
-
-Use:
-
-- Render Web Service for the Spring Boot backend
-- Supabase Postgres for the database
-- Vercel for the frontend
-
-Supabase hosts the database. It does not host the Java backend.
-
-Important caveat: Render free web services can sleep when idle. That is acceptable for demos, but not ideal for your screen-time app because in-process scheduled jobs may not run while the service is asleep. For production, use an always-on paid backend or move scheduled jobs to an external cron/worker setup.
-
-For a free demo, you can reduce cold starts by using an external health-check cron service to ping the backend every few minutes. This is not a production reliability strategy, but it can keep demos smoother.
-
-Suggested free options:
-
-- cron-job.org
-- UptimeRobot
-- Better Stack uptime monitoring
-
-Configure the monitor like this:
-
-- URL: `https://your-backend.onrender.com/`
-- Method: `GET`
-- Interval: every 5 or 10 minutes
-- Expected status: `200`
-
-Do not ping too aggressively. If the app becomes production-critical, use Render's paid always-on instance or move scheduled jobs to a proper cron/worker service instead of relying on keep-alive pings.
-
-## Required Accounts And Secrets
-
-Create or open these accounts before deploying:
-
-- Vercel: hosts the frontend.
-- Render: hosts the Spring Boot backend.
-- Supabase: hosts PostgreSQL.
-- Firebase: provides client auth and Firebase Admin credentials for the backend.
-- Google AI Studio: provides the Gemini API key if Gemini categorization is enabled.
-- OpenAI: optional, only needed if OpenAI code paths are enabled later.
-
-Where to get each value:
-
-- `VITE_BACKEND_URL`: deploy the backend on Render first, then copy the Render service URL from the Render service dashboard. It usually looks like `https://your-service-name.onrender.com`.
-- `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID`: Firebase Console -> Project settings -> General -> Your apps -> Web app -> Firebase SDK config.
-- `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`: Firebase Console -> Project settings -> Service accounts -> Firebase Admin SDK -> Generate new private key. Open the downloaded JSON file and paste the full JSON content into the Render environment variable value.
-- `DATABASE_URL`, `DATABASE_USERNAME`, and `DB_PASSWORD`: Supabase Dashboard -> Project Settings -> Database -> Connection string. Use the session pooler or direct connection details and convert the URL to the `jdbc:postgresql://...` format shown below.
-- `GEMINI_KEY`: Google AI Studio -> Get API key -> Create API key.
-- `OPEN_AI_KEY`: OpenAI Platform -> API keys -> Create new secret key. This is optional for the current app if OpenAI is unused.
-- `VITE_YOUTUBE_API_KEY`: Google Cloud Console -> APIs & Services -> Credentials -> Create API key. This is optional if YouTube features are not enabled.
-- `CORS_ALLOWED_ORIGINS`: use your Vercel frontend URL, plus `http://localhost:5173` for local development.
-
-You do not need a Vercel token, Render API key, or Supabase access token when deploying manually through their dashboards. Those tokens are only needed for CLI or CI/CD automation.
-
-## Deployment Order
-
-Use this order so each app has the URLs and credentials it needs:
-
-1. Create the Supabase Postgres project and save the database connection values.
-2. Create Firebase client and Admin credentials.
-3. Deploy the backend to Render with Supabase and Firebase env vars.
-4. Copy the Render backend URL.
-5. Deploy the frontend to Vercel with `VITE_BACKEND_URL` pointing at Render.
-6. Update Render `CORS_ALLOWED_ORIGINS` with the final Vercel production URL.
-7. Redeploy or restart the Render backend after changing CORS.
-8. Build and install the Windows agent on child devices with `FAMILYBLOCK_BACKEND_URL` pointing at the deployed backend.
-
-## Windows Agent
-
-The agent repo lives in `FamilyBlock-Agent`. It runs locally on Windows and is not deployed to Vercel, Render, or Supabase.
-
-Configure the agent with:
+1. Supabase Dashboard → New project
+2. Save the database password
+3. Project Settings → Database
+4. Copy host, database, port, user, password
+5. `postgresql://` → `jdbc:postgresql://`
+6. Add `?sslmode=require` if missing
 
 ```env
-FAMILYBLOCK_BACKEND_URL=https://your-backend.onrender.com
-DEVICE_ID=child-device-id
-DEVICE_SECRET=device-password-from-parent-ui
-FAMILYBLOCK_CONFIG_PATH=C:\FamilyBlockService\config.json
+DATABASE_URL=jdbc:postgresql://db.your-project-ref.supabase.co:5432/postgres?sslmode=require
+DATABASE_USERNAME=postgres
+DB_PASSWORD=your-supabase-database-password
 ```
 
-Where to get device credentials:
+Pooler host/username (e.g. `postgres.your-project-ref`): use Supabase values as-is, JDBC format.
 
-1. Log in to the frontend as a parent.
-2. Add a device for a child in the device management UI.
-3. Copy the device ID and password into the agent `.env` file or `config.json`.
+Used by: Render backend env (`DATABASE_URL`, `DATABASE_USERNAME`, `DB_PASSWORD`).
 
-Build and install:
+---
 
-1. Open `FamilyBlockService.sln` in Visual Studio 2022 on Windows.
-2. Build `Release | x64`.
-3. Install and run the Windows service with administrator privileges.
+## 2. Firebase
 
-For local development against Docker:
+### Create project
 
-```env
-FAMILYBLOCK_BACKEND_URL=http://localhost:8081
-```
+1. Firebase Console → Add project
+2. Disable Google Analytics if you don't need it
 
-See `FamilyBlock-Agent/DEPLOYMENT.md` for agent-specific setup details.
+### Enable auth
 
-## Backend On Render
+1. Build → Authentication → Get started
+2. Sign-in method → Email/Password → Enable → Save
 
-Create a new Render Web Service:
+The frontend uses Firebase email/password auth via the Identity Toolkit REST API.
 
-- Root directory: `FamilyBlock-Backend`
-- Runtime: Java
-- Build command: `./mvnw clean package -DskipTests`
-- Start command: `java -jar target/manageYourMoney-0.0.1-SNAPSHOT.jar`
+### Web app (frontend)
+
+1. Project settings → General → Your apps → Add app → Web
+2. Register app name
+3. Copy from SDK config:
+   - `apiKey` → `VITE_FIREBASE_API_KEY`
+   - `projectId` → `VITE_FIREBASE_PROJECT_ID`
+
+Used by: Vercel frontend env.
+
+### Admin SDK (backend)
+
+1. Project settings → Service accounts
+2. Firebase Admin SDK → Generate new private key
+3. Download JSON
+4. Paste full JSON content into Render env as `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`
+
+Used by: Render backend env. Backend verifies Firebase ID tokens on `/api/**`.
+
+Prefer `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` on Render. File fallback: `FIREBASE_ADMIN_SERVICE_ACCOUNT_PATH`.
+
+### After frontend deploy
+
+1. Authentication → Settings → Authorized domains
+2. Add your Vercel production domain (e.g. `your-app.vercel.app`)
+
+---
+
+## 3. Backend (Render)
+
+Render does not offer a native Java runtime. Deploy this repo with **Docker**.
+
+- Root directory: `.` (repository root)
+- Language: **Docker**
+- Dockerfile path: `Dockerfile`
+- Build command: leave empty (Docker builds the image)
+- Start command: leave empty (defined in the Dockerfile)
 - Health check path: `/`
 
-Render dashboard steps:
+Render steps:
 
-1. Render Dashboard -> New -> Web Service.
-2. Connect the GitHub repository that contains `FamilyBlock-Backend`.
-3. Choose the branch `config-env-deployment-docs` while testing this work.
-4. Set root directory, build command, start command, and health check path as listed above.
-5. Open Environment and add every backend variable listed below.
-6. Click Create Web Service, then watch the deploy logs.
-7. After the first successful deploy, copy the service URL and use it as `VITE_BACKEND_URL` in Vercel.
-
-Set these Render environment variables:
+1. New → Web Service
+2. Connect this repository
+3. Branch: `config-env-deployment-docs` (while testing)
+4. Set language to **Docker** and leave build/start commands empty
+5. Add env vars below (Supabase + Firebase from steps 1–2)
+6. Create → watch logs
+7. Copy service URL → used as `VITE_BACKEND_URL` and `FAMILYBLOCK_BACKEND_URL`
 
 ```env
 SPRING_PROFILES_ACTIVE=prod
@@ -185,46 +134,136 @@ HIBERNATE_DDL_AUTO=update
 JPA_SHOW_SQL=false
 ```
 
-For Firebase Admin credentials, prefer `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` on Render. If you use a file instead, set `FIREBASE_ADMIN_SERVICE_ACCOUNT_PATH` to the deployed secret file path.
+### Render free tier
 
-## Database On Supabase
+Services sleep when idle. In-process schedulers won't run while asleep. Fine for demos; not production.
 
-Create a Supabase project and copy the direct PostgreSQL connection details.
+Keep-alive for demos only (not production reliability):
 
-Supabase dashboard steps:
+- cron-job.org, UptimeRobot, Better Stack
+- `GET https://your-backend.onrender.com/` every 5–10 min, expect `200`
+- Don't ping aggressively; use paid always-on or external cron/worker for prod
 
-1. Supabase Dashboard -> New project.
-2. Save the database password you choose during project creation.
-3. Go to Project Settings -> Database.
-4. Copy the connection host, database name, port, user, and password.
-5. If Supabase shows a URI, convert it to JDBC by changing `postgresql://` to `jdbc:postgresql://`.
-6. Add `?sslmode=require` if the copied connection string does not already include SSL settings.
+---
 
-Use the JDBC format for Spring:
+## 4. Copy Backend URL
+
+After Render deploy succeeds, copy the service URL (e.g. `https://your-service.onrender.com`).
+
+Used as:
+
+- `VITE_BACKEND_URL` on Vercel
+- `FAMILYBLOCK_BACKEND_URL` on Windows agent
+
+---
+
+## 5. Frontend (Vercel)
+
+Static Vite SPA.
+
+Settings:
+
+- Root directory: `FamilyBlock-Frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
 
 ```env
-DATABASE_URL=jdbc:postgresql://db.your-project-ref.supabase.co:5432/postgres?sslmode=require
-DATABASE_USERNAME=postgres
-DB_PASSWORD=your-supabase-database-password
+VITE_BACKEND_URL=https://your-backend.onrender.com
+VITE_FIREBASE_API_KEY=your-firebase-web-api-key
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_YOUTUBE_API_KEY=optional-youtube-api-key
 ```
 
-Some Supabase connection strings use a pooler host and username like `postgres.your-project-ref`. Use the exact host, username, and password Supabase gives you, then convert the URL to the `jdbc:postgresql://...` format.
+`VITE_*` = browser bundle. No server secrets.
 
-## Frontend On Vercel
+Vercel steps:
 
-Vercel dashboard steps:
+1. Add New → Project
+2. Import `FamilyBlock-Frontend` repo
+3. Root Directory: `FamilyBlock-Frontend`
+4. Framework: Vite
+5. Build: `npm run build`, Output: `dist`
+6. Add env vars above (backend URL from step 4, Firebase from step 2)
+7. Deploy
+8. Add Vercel domain to Firebase Authorized domains (step 2)
 
-1. Vercel Dashboard -> Add New -> Project.
-2. Import the repository that contains `FamilyBlock-Frontend`.
-3. Set Root Directory to `FamilyBlock-Frontend`.
-4. Keep Framework Preset as Vite if Vercel detects it.
-5. Set Build Command to `npm run build`.
-6. Set Output Directory to `dist`.
-7. Add the frontend environment variables from the `Frontend` section.
-8. Deploy.
-9. Copy the final production URL and add it to Render as part of `CORS_ALLOWED_ORIGINS`.
+Preview URLs: add to `CORS_ALLOWED_ORIGINS` or use a stable custom domain.
 
-For preview deployments, add any Vercel preview URL that should call the backend to `CORS_ALLOWED_ORIGINS`, or use a stable custom domain for the frontend.
+---
+
+## 6. Update CORS
+
+Add Vercel production URL to Render backend env:
+
+```env
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app,http://localhost:5173
+```
+
+Include preview URLs if needed.
+
+---
+
+## 7. Restart Backend
+
+Restart or redeploy Render backend after CORS change.
+
+---
+
+## 8. Windows Agent
+
+Repo: `FamilyBlock-Agent`. Local Windows only. Not Vercel/Render/Supabase.
+
+```env
+FAMILYBLOCK_BACKEND_URL=https://your-backend.onrender.com
+DEVICE_ID=child-device-id
+DEVICE_SECRET=device-password-from-parent-ui
+FAMILYBLOCK_CONFIG_PATH=C:\FamilyBlockService\config.json
+```
+
+Device credentials: parent login → device management → add device → copy ID/password → `.env` or `config.json`.
+
+Build/install:
+
+1. Open `FamilyBlockService.sln` in Visual Studio 2022
+2. Build `Release | x64`
+3. Install/run service as admin
+
+Local Docker backend:
+
+```env
+FAMILYBLOCK_BACKEND_URL=http://localhost:8081
+```
+
+Agent details: `FamilyBlock-Agent/DEPLOYMENT.md`
+
+---
+
+## Backend on Vercel?
+
+No, as-is.
+
+Spring Boot needs always-on JVM, PostgreSQL pool, in-process schedulers, async work, Firebase/download file paths. Vercel fits the frontend and serverless functions, not this backend.
+
+Blockers:
+
+- `@EnableScheduling` / `@Scheduled` need a live process
+- Java web server, not a Vercel Function or Next.js route handler
+- Serverless sleep breaks in-process schedulers and async jobs
+- Firebase Admin + ZIP downloads need env/secrets or object storage
+
+Rewrite path: Vercel Functions, Vercel Cron/worker, Vercel Blob/S3/Supabase Storage.
+
+## Accounts & Optional Secrets
+
+- Vercel: frontend
+- Render: backend
+- Supabase: Postgres
+- Firebase: client auth + Admin SDK
+- Google AI Studio: `GEMINI_KEY` (if enabled)
+- OpenAI: `OPEN_AI_KEY` (optional, unused currently)
+- GCP: `VITE_YOUTUBE_API_KEY` (optional)
+
+Dashboard deploy = no Vercel/Render/Supabase API tokens. Tokens only for CLI/CI.
 
 ## Local Development
 
@@ -245,46 +284,36 @@ cp .env.example .env
 ./mvnw spring-boot:run
 ```
 
-Spring Boot does not automatically read `.env` files in every environment. In local shells or hosting dashboards, make sure these variables are exported before starting the backend, or configure them directly in the platform.
+Spring Boot doesn't auto-load `.env` everywhere — export vars or set in platform.
 
 ## Local Docker Compose
 
-The workspace root includes `docker-compose.yml` for local development with:
+Root `docker-compose.yml`:
 
-- PostgreSQL on `localhost:5432`
-- Spring Boot backend on `localhost:8081`
-- Vite frontend on `localhost:5173`
-
-Before starting Compose, create both local env files:
+- PostgreSQL: `localhost:5432`
+- Backend: `localhost:8081`
+- Frontend: `localhost:5173`
 
 ```bash
 cp FamilyBlock-Frontend/.env.example FamilyBlock-Frontend/.env
 cp FamilyBlock-Backend/.env.example FamilyBlock-Backend/.env
 ```
 
-Then add the required Firebase and API values to those `.env` files. The Compose file overrides the database connection to use the local `postgres` container, so you do not need Supabase for local Docker development.
-
-Start the stack from the workspace root:
+Fill Firebase/API secrets. Compose overrides DB to local `postgres` — no Supabase needed.
 
 ```bash
 docker compose up --build
 ```
-
-Open:
 
 - Frontend: `http://localhost:5173`
-- Backend health check: `http://localhost:8081/`
+- Backend: `http://localhost:8081/`
 - Postgres: `localhost:5432`, database `family_block`, user `family_block`, password `family_block`
 
-The backend repo also contains a branch-trackable copy at `FamilyBlock-Backend/docker-compose.yml`. From the backend directory, run:
+Also: `FamilyBlock-Backend/docker-compose.yml` — `docker compose up --build` from backend dir.
 
-```bash
-docker compose up --build
-```
+## Makefile
 
-## Makefile Commands
-
-The workspace root includes a `Makefile` with shortcuts for Docker and verification:
+Root `Makefile`:
 
 ```bash
 make help
@@ -295,30 +324,20 @@ make down
 make verify
 ```
 
-Common commands:
+- `setup-env`: `.env` from `.env.example` (frontend, backend, agent)
+- `up` / `up-build`: Docker services
+- `down`: stop services
+- `logs-backend` / `logs-frontend` / `logs-db`
+- `reset-db`: stop + delete Postgres volume
+- `verify`: frontend build + API eslint + backend package
 
-- `make setup-env`: creates missing local `.env` files from `.env.example`.
-- `make up`: starts Docker services.
-- `make up-build`: starts Docker services and rebuilds images if needed.
-- `make down`: stops Docker services.
-- `make logs-backend`: follows backend logs.
-- `make logs-frontend`: follows frontend logs.
-- `make logs-db`: follows Postgres logs.
-- `make reset-db`: stops services and deletes the local Postgres volume.
-- `make verify`: runs frontend build, lints changed API files, and packages the backend.
-
-The backend repo also includes a branch-trackable `Makefile`. From `FamilyBlock-Backend`, the same commands work:
-
-```bash
-make up-build
-make logs-backend
-make down
-```
+`FamilyBlock-Backend/Makefile` — same from backend dir.
 
 ## Production Notes
 
-- Keep secrets out of Git. `.env` files are ignored; `.env.example` is safe to commit.
-- Keep `CORS_ALLOWED_ORIGINS` in sync with your Vercel production and preview URLs.
-- Consider changing `HIBERNATE_DDL_AUTO` from `update` to `validate` after the schema stabilizes.
-- Move agent ZIP downloads to persistent object storage if they need to survive rebuilds or redeploys.
-- For reliable daily/interval jobs, replace in-process schedulers with a hosted cron or worker before production use.
+- Secrets out of Git (`.env` ignored, `.env.example` OK)
+- `CORS_ALLOWED_ORIGINS` sync with Vercel prod + preview URLs
+- Firebase Authorized domains sync with Vercel URLs
+- `HIBERNATE_DDL_AUTO`: `update` → `validate` after schema stable
+- Agent ZIPs: object storage if rebuilds wipe them
+- Schedulers: hosted cron/worker for reliable daily/interval jobs
