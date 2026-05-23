@@ -1,7 +1,9 @@
 package net.springprojectbackend.springboot.config;
 
+import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -19,10 +21,17 @@ import org.springframework.http.HttpMethod;
 public class SecurityConfig {
 
 	private final FirebaseAuthFilter firebaseAuthFilter;
+	private final List<String> allowedOrigins;
 	
 	//Constructor injection - Spring finds and passes it. Ok it is final.
-	public SecurityConfig(FirebaseAuthFilter firebaseAuthFilter) {
+	public SecurityConfig(
+			FirebaseAuthFilter firebaseAuthFilter,
+			@Value("${app.cors.allowed-origins}") String allowedOrigins) {
         this.firebaseAuthFilter = firebaseAuthFilter;
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+        		.map(String::trim)
+        		.filter(origin -> !origin.isEmpty())
+        		.toList();
     }
 	
 	
@@ -59,7 +68,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://192.168.1.139:5173", "https://worth-it-kohl.vercel.app"));
+        config.setAllowedOrigins(allowedOrigins);
         
         
 
