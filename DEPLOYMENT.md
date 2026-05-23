@@ -1,9 +1,10 @@
 # Deployment Guide
 
-This project is split into two separate repositories inside one folder:
+This project is split into separate repositories inside one folder:
 
 - `FamilyBlock-Frontend`: Vite + React frontend
 - `FamilyBlock-Backend`: Spring Boot + PostgreSQL backend
+- `FamilyBlock-Agent`: Windows service installed on child devices
 
 ## Frontend
 
@@ -105,6 +106,40 @@ Use this order so each app has the URLs and credentials it needs:
 5. Deploy the frontend to Vercel with `VITE_BACKEND_URL` pointing at Render.
 6. Update Render `CORS_ALLOWED_ORIGINS` with the final Vercel production URL.
 7. Redeploy or restart the Render backend after changing CORS.
+8. Build and install the Windows agent on child devices with `FAMILYBLOCK_BACKEND_URL` pointing at the deployed backend.
+
+## Windows Agent
+
+The agent repo lives in `FamilyBlock-Agent`. It runs locally on Windows and is not deployed to Vercel, Render, or Supabase.
+
+Configure the agent with:
+
+```env
+FAMILYBLOCK_BACKEND_URL=https://your-backend.onrender.com
+DEVICE_ID=child-device-id
+DEVICE_SECRET=device-password-from-parent-ui
+FAMILYBLOCK_CONFIG_PATH=C:\FamilyBlockService\config.json
+```
+
+Where to get device credentials:
+
+1. Log in to the frontend as a parent.
+2. Add a device for a child in the device management UI.
+3. Copy the device ID and password into the agent `.env` file or `config.json`.
+
+Build and install:
+
+1. Open `FamilyBlockService.sln` in Visual Studio 2022 on Windows.
+2. Build `Release | x64`.
+3. Install and run the Windows service with administrator privileges.
+
+For local development against Docker:
+
+```env
+FAMILYBLOCK_BACKEND_URL=http://localhost:8081
+```
+
+See `FamilyBlock-Agent/DEPLOYMENT.md` for agent-specific setup details.
 
 ## Backend On Render
 

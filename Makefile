@@ -3,14 +3,16 @@ SHELL := /bin/bash
 COMPOSE := docker compose -f docker-compose.yml
 FRONTEND_DIR := ../FamilyBlock-Frontend
 BACKEND_DIR := .
+AGENT_DIR := ../FamilyBlock-Agent
 
-.PHONY: help setup-env up up-build down restart ps logs logs-backend logs-frontend logs-db clean reset-db frontend-install frontend-lint frontend-build backend-package backend-test verify
+.PHONY: help setup-env up up-build down restart ps logs logs-backend logs-frontend logs-db clean reset-db frontend-install frontend-lint frontend-build backend-package backend-test agent-setup-env verify
 
 help:
 	@echo "Family Block common commands"
 	@echo ""
 	@echo "Docker:"
 	@echo "  make setup-env      Create local .env files if missing"
+	@echo "  make agent-setup-env Create agent .env if missing"
 	@echo "  make up             Start all Docker services"
 	@echo "  make up-build       Build/pull and start all Docker services"
 	@echo "  make down           Stop Docker services"
@@ -33,7 +35,11 @@ help:
 setup-env:
 	@test -f "$(FRONTEND_DIR)/.env" || cp "$(FRONTEND_DIR)/.env.example" "$(FRONTEND_DIR)/.env"
 	@test -f "$(BACKEND_DIR)/.env" || cp "$(BACKEND_DIR)/.env.example" "$(BACKEND_DIR)/.env"
-	@echo "Local env files are present. Fill Firebase/API secrets before starting the backend."
+	@if [ -d "$(AGENT_DIR)" ]; then $(MAKE) -C "$(AGENT_DIR)" setup-env; fi
+	@echo "Local env files are present. Fill Firebase/API/device secrets before starting services."
+
+agent-setup-env:
+	@$(MAKE) -C "$(AGENT_DIR)" setup-env
 
 up: setup-env
 	$(COMPOSE) up
