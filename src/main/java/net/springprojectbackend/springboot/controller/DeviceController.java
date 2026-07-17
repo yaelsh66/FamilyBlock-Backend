@@ -18,11 +18,15 @@ import net.springprojectbackend.springboot.dto.DeviceDto.SiteListRespone;
 import net.springprojectbackend.springboot.dto.DeviceDto.UpdateSiteListRequest;
 import net.springprojectbackend.springboot.model.BlockConfig;
 import net.springprojectbackend.springboot.model.Device;
+import net.springprojectbackend.springboot.model.FamilyMember;
 import net.springprojectbackend.springboot.model.TimeBalance;
+import net.springprojectbackend.springboot.model.TimeSession;
+import net.springprojectbackend.springboot.model.TimeSession.TimeSessionStatus;
 import net.springprojectbackend.springboot.repository.BlockConfigRepository;
 import net.springprojectbackend.springboot.repository.DeviceRepository;
 import net.springprojectbackend.springboot.repository.FamilyMemberRepository;
 import net.springprojectbackend.springboot.repository.TimeBalanceRepository;
+import net.springprojectbackend.springboot.repository.TimeSessionRepository;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -53,13 +57,15 @@ public class DeviceController {
 	private final BlockConfigRepository blockConfigRepository;
 	private final TimeBalanceRepository timeBalanceRepository;
 	private final DeviceRepository deviceRepository;
+	private final TimeSessionRepository timeSessionRepository;
 	
 	public DeviceController(FamilyMemberRepository familyMemberRepository, 
-			BlockConfigRepository blockConfigRepository, TimeBalanceRepository timeBalanceRepository, DeviceRepository deviceRepository) {
+			BlockConfigRepository blockConfigRepository, TimeBalanceRepository timeBalanceRepository, DeviceRepository deviceRepository, TimeSessionRepository timeSessionRepository) {
 		this.familyMemberRepository = familyMemberRepository;
 		this.blockConfigRepository = blockConfigRepository;
 		this.timeBalanceRepository = timeBalanceRepository;
 		this.deviceRepository = deviceRepository;
+		this.timeSessionRepository = timeSessionRepository;
 	}
 	
 	
@@ -171,7 +177,7 @@ public class DeviceController {
 
 	        blockConfig.setBlockedPermanentWebsitesJson(json);
 	        blockConfig.setRewritePermanentWebsites(req.rewritePermanentWebsites());
-
+	        blockConfig.setRewritePermanentWebsites(true);
 	        blockConfigRepository.save(blockConfig);
 
 	    } catch (JsonProcessingException e) {
@@ -200,11 +206,21 @@ public class DeviceController {
 	
 	@PostMapping("block_device/{childId}")
 	public ResponseEntity<Void> parentBlockDeviceRequest(@PathVariable Long childId, Authentication authentication){
-		
+		FamilyMember familyMember = familyMemberRepository.getReferenceById(childId);
 		TimeBalance timeBalance = timeBalanceRepository.findByChild_Id(childId);
+		TimeSession timeSession = new TimeSession();
+		
 		if(timeBalance == null) {
 			timeBalance = new TimeBalance();
+			timeBalance.setChild(familyMember);
 		}
+		timeSession.setChild(familyMember);
+		timeSession.setEndedAt(LocalDateTime.now());
+		timeSession.setMinutesAtEnd(timeBalance.getDailyTimeInMinutes() + 
+				timeBalance.getTotalTimeInMinutes());
+		timeSession.setMinutesAtStart(timeBalance.getWithdrawTime() + timeBalance.getWithdrawTimeUsed());
+		timeSession.setStatus(TimeSessionStatus.FORCE_STOPPED);
+		timeSessionRepository.save(timeSession);
 		timeBalance.setParentBlock(true);
 		timeBalance.setIsRunning(false);
 		timeBalance.setWithdrawTime(0);
@@ -216,14 +232,27 @@ public class DeviceController {
 	}
 	
 	@PostMapping("unblock_device/{childId}")
-	public ResponseEntity<Void> parentUnblockDevice(@PathVariable Long childId, Authentication authentication){
+	public ResponseEntity<Void> parentUnblockDevice(@PathVariable Long childId, 
+			Authentication authentication){
+		FamilyMember familyMember = familyMemberRepository.getReferenceById(childId);
 		TimeBalance timeBalance = timeBalanceRepository.findByChild_Id(childId);
+		TimeSession timeSession = new TimeSession();
+		
 		if(timeBalance == null) {
 			timeBalance = new TimeBalance();
+			timeBalance.setChild(familyMember);
 		}
+		timeSession.setChild(familyMember);
+		timeSession.setEndedAt(LocalDateTime.now());
+		timeSession.setMinutesAtStart(timeBalance.getDailyTimeInMinutes() + 
+				timeBalance.getTotalTimeInMinutes());
+		timeSession.setStatus(TimeSessionStatus.RUNNING);
+		timeSessionRepository.save(timeSession);
 		timeBalance.setParentBlock(false);
 		timeBalance.setIsRunning(true);
-		timeBalance.setWithdrawTime(timeBalance.getDailyTimeInMinutes() + timeBalance.getTotalTimeInMinutes());
+		timeBalance.setWithdrawTime(timeBalance.getDailyTimeInMinutes() + 
+				timeBalance.getTotalTimeInMinutes());
+		timeBalance.setWithdrawTimeUsed(0);
 		timeBalance.setLastUpdate(LocalDateTime.now());
 		timeBalanceRepository.save(timeBalance);
 		return ResponseEntity.ok(null);

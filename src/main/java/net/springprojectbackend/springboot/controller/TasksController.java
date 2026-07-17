@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.transaction.Transactional;
 import net.springprojectbackend.springboot.dto.TaskDto.AddNewTaskRequest;
 import net.springprojectbackend.springboot.dto.TaskDto.FamilyPendingCompletionRequest;
 import net.springprojectbackend.springboot.dto.FamilyPendingCompletionResponse;
@@ -40,11 +41,14 @@ import net.springprojectbackend.springboot.model.TaskInstance;
 import net.springprojectbackend.springboot.model.TaskInstance.TaskStatus;
 import net.springprojectbackend.springboot.model.TaskTemplate;
 import net.springprojectbackend.springboot.model.TimeBalance;
+import net.springprojectbackend.springboot.model.TimeSession;
+import net.springprojectbackend.springboot.model.TimeSession.TimeSessionStatus;
 import net.springprojectbackend.springboot.model.FamilyMember.UserRole;
 import net.springprojectbackend.springboot.repository.FamilyMemberRepository;
 import net.springprojectbackend.springboot.repository.TaskInstanceRepository;
 import net.springprojectbackend.springboot.repository.TaskTemplateRepository;
 import net.springprojectbackend.springboot.repository.TimeBalanceRepository;
+import net.springprojectbackend.springboot.repository.TimeSessionRepository;
 import net.springprojectbackend.springboot.repository.AppUserRepository;
 
 
@@ -58,14 +62,17 @@ public class TasksController {
 	private final FamilyMemberRepository familyMemberRepository;
 	private final TimeBalanceRepository timeBalanceRepository;
 	private final AppUserRepository appUserRepository;
+	private final TimeSessionRepository timeSessionRepository;
 	
-	public TasksController(TaskTemplateRepository ttr, FamilyMemberRepository familyMemberRepository, TaskInstanceRepository taskInstanceRepository,
-			TimeBalanceRepository timeBalanceRepository, AppUserRepository appUserRepository) {
+	public TasksController(TaskTemplateRepository ttr, FamilyMemberRepository familyMemberRepository, 
+			TaskInstanceRepository taskInstanceRepository,
+			TimeBalanceRepository timeBalanceRepository, AppUserRepository appUserRepository, TimeSessionRepository timeSessionRepository) {
 		this.taskTemplateRepository = ttr;
 		this.taskInstanceRepository = taskInstanceRepository;
 		this.familyMemberRepository = familyMemberRepository;
 		this.timeBalanceRepository = timeBalanceRepository;
 		this.appUserRepository = appUserRepository;
+		this.timeSessionRepository = timeSessionRepository;
 	}
 	
 	@PostMapping("/new_task")
@@ -159,7 +166,8 @@ public class TasksController {
 		taskInstance.setCreatedAt(LocalDateTime.now());
 		taskInstanceRepository.save(taskInstance);
 		
-		return ResponseEntity.ok(new UpdateTaskAssignmentResponse(taskInstance.getId(), taskInstance.getFamilyMember().getFirebaseUid()));
+		return ResponseEntity.ok(new UpdateTaskAssignmentResponse(taskInstance.getId(), 
+				taskInstance.getFamilyMember().getFirebaseUid()));
 		
 	}
 	
@@ -195,7 +203,8 @@ public class TasksController {
 					AppUser appUser = appUserRepository.getReferenceById(kid.getUser().getId());
 					TimeBalance timeBalance = timeBalanceRepository.findByChild(kid);
 					return new GetKidResponse(kid.getId(),
-							kid.getFirebaseUid(), appUser.getEmail(), appUser.getNickname(), kid.getRole(), kid.getFamily().getFamily(), timeBalance.getTotalTimeInMinutes(), 
+							kid.getFirebaseUid(), appUser.getEmail(), appUser.getNickname(), kid.getRole(), 
+							kid.getFamily().getFamily(), timeBalance.getTotalTimeInMinutes() + timeBalance.getDailyTimeInMinutes(), 
 							timeBalance.getPendingTimeInMinutes());
 							
 				}).toList();
@@ -205,14 +214,17 @@ public class TasksController {
 	}
 	
 	@PostMapping("family_pending_completions")
-	public ResponseEntity<List<FamilyPendingCompletionResponse>> familyPendingCompletion(@RequestBody FamilyPendingCompletionRequest req, Authentication authentication){
+	public ResponseEntity<List<FamilyPendingCompletionResponse>> familyPendingCompletion
+	(@RequestBody FamilyPendingCompletionRequest req, Authentication authentication){
 		String uid = (String) authentication.getPrincipal();
 		FamilyMember familyMember = familyMemberRepository.findByFirebaseUid(uid);
-		List<FamilyPendingCompletionResponse> familyPendingCompletionResponses = taskInstanceRepository.findPendingCompletionsByFamilyId(familyMember.getFamily().getId(), TaskStatus.SUBMITTED);
+		List<FamilyPendingCompletionResponse> familyPendingCompletionResponses = 
+				taskInstanceRepository.findPendingCompletionsByFamilyId(familyMember.getFamily().getId(), TaskStatus.SUBMITTED);
 		
 		return ResponseEntity.ok(familyPendingCompletionResponses);
 	}
 	
+	@Transactional
 	@PostMapping("/approve_completion")
 	public ResponseEntity<Void> approveCompletionRequest(@RequestBody ApproveCompletionRequest req, Authentication authentication){
 		
@@ -220,17 +232,17 @@ public class TasksController {
 		TimeBalance timeBalance = timeBalanceRepository.findByChild_Id(childMember.getId());
 		TaskInstance taskInstance = taskInstanceRepository.getReferenceById(req.completionId());
 		
-		System.out.println("req.childId() "  + req.childId() + "childMember.getId(): " + childMember.getId() + "    timeBalance.getPendingTimeInMinutes() - req.time() " + timeBalance.getPendingTimeInMinutes() + " " + req.time() +
-				"Before: timeBalance.getTotalTimeInMinutes() " + timeBalance.getTotalTimeInMinutes() + "timeBalance.getChild().getId: " + timeBalance.getChild().getId());
-		
-		timeBalance.setPendingTimeInMinutes(timeBalance.getPendingTimeInMinutes() - taskInstance.getMinutesReward());
+		timeBalance.setPendingTimeInMinutes(timeBalance.getPendingTimeInMinutes() - 
+				taskInstance.getMinutesReward());
+		if(timeBalance.getPendingTimeInMinutes() < 0) {
+			timeBalance.setPendingTimeInMinutes(0);
+		}
 		timeBalance.setTotalTimeInMinutes(timeBalance.getTotalTimeInMinutes() + req.time());
 		timeBalance.setLastUpdate(LocalDateTime.now());
-		
+		if(timeBalance.getIsRunning()) {
+			timeBalance.setWithdrawTime(timeBalance.getWithdrawTime() + req.time());
+		}
 		timeBalanceRepository.save(timeBalance);
-		System.out.println("After save ------------- timeBalance.getPendingTimeInMinutes() " + timeBalance.getPendingTimeInMinutes() + " " + req.time() +
-				"After: timeBalance.getTotalTimeInMinutes() " + timeBalance.getTotalTimeInMinutes());
-		
 		taskInstance.setParentComment(req.parentComment());
 		taskInstance.setStatus(TaskStatus.APPROVED);
 		taskInstance.setApprovedAt(LocalDateTime.now());
@@ -247,6 +259,9 @@ public class TasksController {
 		TaskInstance taskInstance = taskInstanceRepository.getReferenceById(req.completionId());
 		
 		timeBalance.setPendingTimeInMinutes(timeBalance.getPendingTimeInMinutes() - req.time());
+		if(timeBalance.getPendingTimeInMinutes() < 0) {
+			timeBalance.setPendingTimeInMinutes(0);
+		}
 		timeBalance.setLastUpdate(LocalDateTime.now());
 		timeBalanceRepository.save(timeBalance);
 		
@@ -260,7 +275,8 @@ public class TasksController {
 	}
 	
 	@PostMapping("/withdraw_time")
-	public ResponseEntity<WithdrawTimeResponse> withdrawTime(@RequestBody WithdrawTimeRequest req, Authentication authentication){
+	public ResponseEntity<WithdrawTimeResponse> withdrawTime(@RequestBody WithdrawTimeRequest req, 
+			Authentication authentication){
 		String uid = (String) authentication.getPrincipal();
 		FamilyMember familyMember = familyMemberRepository.findByFirebaseUid(uid);
 		TimeBalance timeBalance = timeBalanceRepository.findByChild(familyMember);
@@ -270,14 +286,24 @@ public class TasksController {
 			return ResponseEntity.ok(res);
 		}
 		if(timeBalance.getScheduleBlock()) {
-			res = new WithdrawTimeResponse(false, "It is your schedule block time");
+			res = new WithdrawTimeResponse(false, "It is your schedule block time!");
 			return ResponseEntity.ok(res);
+		}
+		if(timeBalance.getDailyTimeInMinutes() + timeBalance.getTotalTimeInMinutes() < req.minutes()) {
+			res = new WithdrawTimeResponse(false, "You don't have enougth time!");
 		}
 		timeBalance.setWithdrawTime(req.minutes());
 		timeBalance.setWithdrawTimeUsed(0);
 		timeBalance.setIsRunning(true);
 		timeBalance.setLastUpdate(LocalDateTime.now());
 		timeBalanceRepository.save(timeBalance);
+		TimeSession timeSession = new TimeSession();
+		timeSession.setChild(familyMember);
+		timeSession.setMinutesAtStart(timeBalance.getDailyTimeInMinutes() + 
+				timeBalance.getTotalTimeInMinutes());
+		timeSession.setStartedAt(LocalDateTime.now());
+		timeSession.setStatus(TimeSessionStatus.RUNNING);
+		timeSessionRepository.save(timeSession);
 		res = new WithdrawTimeResponse(true, "Ok");
 		return ResponseEntity.ok(res);
 
@@ -288,12 +314,20 @@ public class TasksController {
 		String uid = (String) authentication.getPrincipal();
 		FamilyMember familyMember = familyMemberRepository.findByFirebaseUid(uid);
 		TimeBalance timeBalance = timeBalanceRepository.findByChild(familyMember);
-		
+		TimeSession timeSession = new TimeSession();
+		timeSession.setChild(familyMember);
+		timeSession.setEndedAt(LocalDateTime.now());
+		timeSession.setMinutesAtEnd(timeBalance.getDailyTimeInMinutes() + 
+				timeBalance.getTotalTimeInMinutes());
+		timeSession.setMinutesAtStart(timeBalance.getWithdrawTime() + timeBalance.getWithdrawTimeUsed());
+		timeSession.setStatus(TimeSessionStatus.FINISHED);
+		timeSessionRepository.save(timeSession);
 		timeBalance.setWithdrawTime(0);
 		timeBalance.setWithdrawTimeUsed(0);
 		timeBalance.setIsRunning(false);
 		timeBalance.setLastUpdate(LocalDateTime.now());
 		timeBalanceRepository.save(timeBalance);
+		
 		return ResponseEntity.ok(null);
 		
 		
@@ -319,7 +353,8 @@ public class TasksController {
 			taskTemplate.setMinutesReward(req.screenTime());
 		}
 		taskTemplateRepository.save(taskTemplate);
-		TaskResponse res = new TaskResponse(taskTemplate.getId(), taskTemplate.getTitle(), taskTemplate.getDescription(), taskTemplate.getMinutesReward());
+		TaskResponse res = new TaskResponse(taskTemplate.getId(), taskTemplate.getTitle(), taskTemplate.getDescription(), 
+				taskTemplate.getMinutesReward());
 		return ResponseEntity.ok(res);
 		
 	}
@@ -337,7 +372,8 @@ public class TasksController {
 	}
 	
 	@PostMapping("family_task_history")
-	public ResponseEntity<List<TaskHistoryResponse>> taskHistoryResponse(@RequestBody TaskHistoryRequest req, Authentication authentication){
+	public ResponseEntity<List<TaskHistoryResponse>> taskHistoryResponse(@RequestBody TaskHistoryRequest req, 
+			Authentication authentication){
 		List<TaskHistoryResponse> res = taskInstanceRepository.findByFamilyMember_Id(req.childId());
 		
 		return ResponseEntity.ok(res);

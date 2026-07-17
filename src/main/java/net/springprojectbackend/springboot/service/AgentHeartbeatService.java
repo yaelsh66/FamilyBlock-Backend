@@ -1,6 +1,7 @@
 package net.springprojectbackend.springboot.service;
 
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,10 +13,14 @@ import net.springprojectbackend.springboot.dto.AgentHeartbeatResponse;
 import net.springprojectbackend.springboot.model.Device;
 import net.springprojectbackend.springboot.model.FamilyMember;
 import net.springprojectbackend.springboot.model.TimeBalance;
+import net.springprojectbackend.springboot.model.TimeSession;
+import net.springprojectbackend.springboot.model.TimeSession.TimeSessionStatus;
 import net.springprojectbackend.springboot.model.BlockConfig;
 import net.springprojectbackend.springboot.repository.BlockConfigRepository;
 import net.springprojectbackend.springboot.repository.DeviceRepository;
 import net.springprojectbackend.springboot.repository.TimeBalanceRepository;
+import net.springprojectbackend.springboot.repository.TimeSessionRepository;
+import net.springprojectbackend.springboot.repository.TimeTransactionRepository;
 
 @Service
 public class AgentHeartbeatService {
@@ -25,24 +30,25 @@ public class AgentHeartbeatService {
     private final BlockConfigRepository blockConfigRepository;
     private final DeviceSecretVerifier deviceSecretVerifier;
     private final BlockConfigParser blockConfigParser;
+    private final TimeSessionRepository timeSessionRepository;
 
     AgentHeartbeatService(DeviceRepository deviceRepository,
                           TimeBalanceRepository timeBalanceRepository,
                           BlockConfigRepository blockConfigRepository,
                           DeviceSecretVerifier deviceSecretVerifier,
-                          BlockConfigParser blockConfigParser) {
+                          BlockConfigParser blockConfigParser,  
+                          TimeSessionRepository timeSessionRepository) {
         this.deviceRepository = deviceRepository;
         this.timeBalanceRepository = timeBalanceRepository;
         this.blockConfigRepository = blockConfigRepository;
         this.deviceSecretVerifier = deviceSecretVerifier;
         this.blockConfigParser = blockConfigParser;
+		this.timeSessionRepository = timeSessionRepository;
     }
 
     @Transactional
     public AgentHeartbeatResponse handleHeartbeat(AgentHeartbeatRequest req) {
 
-    	System.out.println("@@@@@@@@@@@@@@@@@@@@ req.deviceId: " + req.deviceId + 
-    			"$$$$$$$$$$$$$$ req.deviceSecret: " + req.deviceSecret);
         // 1) Find device
         Device device = deviceRepository.findByDeviceId(req.deviceId)
                 .orElseThrow(() -> new AgentAuthException("Unknown deviceId: " + req.deviceId));
@@ -61,11 +67,12 @@ public class AgentHeartbeatService {
             TimeBalance b = new TimeBalance();
             b.setChild(child);
             b.setTotalTimeInMinutes(0);
+            b.setDailyTimeInMinutes(0);
             b.setLastUpdate(LocalDateTime.now());
             timeBalanceRepository.save(b);
             timeBalance = b;
         }
-
+                  
         BlockConfig blockCfg = blockConfigRepository.findByChild(child).orElse(null);
 
         // ----------------------------
@@ -96,7 +103,7 @@ public class AgentHeartbeatService {
         if (timeBalance.getParentBlock()) {
             return new AgentHeartbeatResponse(
                     false,
-                    available,
+                    available + timeBalance.getDailyTimeInMinutes(),
                     blockedApps,
                     permanentWebsites,
                     dynamicWebsites,
@@ -108,7 +115,7 @@ public class AgentHeartbeatService {
         if (timeBalance.getScheduleBlock()) {
             return new AgentHeartbeatResponse(
                     false,
-                    available,
+                    available + timeBalance.getDailyTimeInMinutes(),
                     blockedApps,
                     permanentWebsites,
                     dynamicWebsites,
@@ -127,20 +134,19 @@ public class AgentHeartbeatService {
             timeBalance.setWithdrawTime(withdrawTime);
             timeBalance.setWithdrawTimeUsed(
                     timeBalance.getWithdrawTimeUsed() + deduct);
-        }
+            
+            if(timeBalance.getDailyTimeInMinutes() != null && timeBalance.getDailyTimeInMinutes() > 0) {
+            	timeBalance.setDailyTimeInMinutes(timeBalance.getDailyTimeInMinutes() - deduct);
+            	timeBalance.setDailyTimeLastUpdate(LocalDate.now());
+            }else {
+            	if (available > 0) {
 
-        if(timeBalance.getDailyTimeInMinutes() != null && timeBalance.getDailyTimeInMinutes() > 0) {
-        	timeBalance.setDailyTimeInMinutes(timeBalance.getDailyTimeInMinutes() - deduct);
-        }else {
-        	if (available > 0
-                    && Boolean.TRUE.equals(timeBalance.getIsRunning())
-                    && req.isRunning) {
-
-                available -= deduct;
+                    available -= deduct;
+                }
+            	
             }
-        	
         }
-             
+                  
 
         if (withdrawTime <= 0) {
             timeBalance.setIsRunning(false);
@@ -150,18 +156,34 @@ public class AgentHeartbeatService {
         	timeBalance.setDailyTimeInMinutes(0);
         	available = 0;
             timeBalance.setIsRunning(false);
+            TimeSession timeSession = new TimeSession();
+            
+        	timeSession.setChild(child);
+        	timeSession.setDevice(device);
+            timeSession.setEndedAt(LocalDateTime.now());
+            timeSession.setMinutesAtEnd(timeBalance.getTotalTimeInMinutes() + 
+            		timeBalance.getDailyTimeInMinutes());
+            timeSession.setMinutesAtStart(timeBalance.getWithdrawTime() + 
+            		timeBalance.getWithdrawTimeUsed());
+            timeSession.setStatus(TimeSessionStatus.FINISHED);
+            timeBalance.setWithdrawTime(0);
+            timeBalance.setWithdrawTimeUsed(0);
+            timeSessionRepository.save(timeSession);
         }
         
         device.setLastHeartbeatAt(LocalDateTime.now());
         deviceRepository.save(device);
-
+        
         timeBalance.setTotalTimeInMinutes(available);
         timeBalance.setLastUpdate(LocalDateTime.now());
         timeBalanceRepository.save(timeBalance);
 
+        
+        
+        
         return new AgentHeartbeatResponse(
                 timeBalance.getIsRunning(),
-                available,
+                available + timeBalance.getDailyTimeInMinutes(),
                 blockedApps,
                 permanentWebsites,
                 dynamicWebsites,

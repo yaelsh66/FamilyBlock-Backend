@@ -16,10 +16,11 @@ import jakarta.persistence.Table;
 @Table(name = "time_session")
 public class TimeSession {
 
-	enum TimeSessionStatus {
+	public enum TimeSessionStatus {
 	    RUNNING,
 	    FINISHED,
-	    FORCE_STOPPED
+	    FORCE_STOPPED,
+	    PARENT
 
 	}
 	
@@ -30,7 +31,7 @@ public class TimeSession {
     @ManyToOne(optional = false)
     private FamilyMember child;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = true)
     private Device device;
 
     private LocalDateTime startedAt;

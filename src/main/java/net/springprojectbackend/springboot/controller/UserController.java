@@ -48,17 +48,12 @@ public class UserController {
     public ResponseEntity<?> createUser(@RequestHeader("Authorization") String authHeader,
     		@RequestBody Map<String, Object> body) throws FirebaseAuthException {
     	
-    	System.out.println("Authorization header: " + authHeader);
-
     	String idToken = authHeader.substring(7);
-    	System.out.println("Extracted token: " + idToken);
-
+    	
         FirebaseToken decoded = FirebaseAuth.getInstance().verifyIdToken(idToken);
 
         String firebaseUid = decoded.getUid();
         String email = decoded.getEmail();
-        
-        
         
         String familyName = (String) body.get("familyName");
         Family family = familyRepository.findByFamily(familyName);

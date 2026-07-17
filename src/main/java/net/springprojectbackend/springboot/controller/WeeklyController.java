@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.transaction.Transactional;
 import net.springprojectbackend.springboot.dto.WeeklyTaskDto.AssignTaskWeeklyRequest;
 import net.springprojectbackend.springboot.dto.WeeklyTaskDto.ComtleteWeeklyTaskRequest;
 import net.springprojectbackend.springboot.dto.WeeklyTaskDto.GetWeeklyScheduleResponse;
@@ -26,10 +27,12 @@ import net.springprojectbackend.springboot.model.FamilyMember.UserRole;
 import net.springprojectbackend.springboot.model.TaskInstance.TaskStatus;
 import net.springprojectbackend.springboot.model.TaskInstance;
 import net.springprojectbackend.springboot.model.TaskTemplate;
+import net.springprojectbackend.springboot.model.TimeBalance;
 import net.springprojectbackend.springboot.model.WeeklyTask;
 import net.springprojectbackend.springboot.repository.FamilyMemberRepository;
 import net.springprojectbackend.springboot.repository.TaskInstanceRepository;
 import net.springprojectbackend.springboot.repository.TaskTemplateRepository;
+import net.springprojectbackend.springboot.repository.TimeBalanceRepository;
 import net.springprojectbackend.springboot.repository.WeeklyTaskRepository;
 
 @RestController
@@ -40,13 +43,15 @@ public class WeeklyController {
 	private final TaskTemplateRepository taskTemplateRepository;
 	private final TaskInstanceRepository taskInstanceRepository;
 	private final WeeklyTaskRepository weeklyTaskRepository;
+	private final TimeBalanceRepository timeBalanceRepository;
 	
 	public WeeklyController(FamilyMemberRepository familyMemberRepository, TaskInstanceRepository taskInstanceRepository, 
-			WeeklyTaskRepository weeklyTaskRepository, TaskTemplateRepository taskTemplateRepository) {
+			WeeklyTaskRepository weeklyTaskRepository, TaskTemplateRepository taskTemplateRepository, TimeBalanceRepository timeBalanceRepository) {
 		this.familyMemberRepository = familyMemberRepository;
 		this.taskTemplateRepository = taskTemplateRepository;
 		this.taskInstanceRepository = taskInstanceRepository;
 		this.weeklyTaskRepository = weeklyTaskRepository;
+		this.timeBalanceRepository = timeBalanceRepository;
 	}
 	
 	@GetMapping("family_weekly_schedule")
@@ -118,10 +123,12 @@ public class WeeklyController {
 	
 	@DeleteMapping("clear_weekly_schedule/{taskId}")
 	public ResponseEntity<Void> deleteWeeklyTask(@PathVariable Long taskId, Authentication authentication){
+		System.out.println("clear_weekly_schedule/{taskId} ------  taskId: " + taskId);
 		weeklyTaskRepository.deleteById(taskId);
 		return ResponseEntity.ok(null);
 	}
 	
+	@Transactional
 	@PostMapping("complete")
 	public ResponseEntity<Void> completeWeeklyTask(@RequestParam(required = false) Long childId, @RequestBody ComtleteWeeklyTaskRequest req, Authentication authentication){
 		FamilyMember familyMember;
@@ -140,9 +147,12 @@ public class WeeklyController {
 		taskInstance.setMinutesReward(weeklyTask.getMinutesReward());
 		taskInstance.setStatus(TaskStatus.SUBMITTED);
 		taskInstance.setChildComment(req.comment());
+		taskInstance.setCreatedAt(LocalDateTime.now());
 		taskInstance.setSubmittedAt(LocalDateTime.now());
 		taskInstanceRepository.save(taskInstance);
 		
+		TimeBalance timeBalance = timeBalanceRepository.findByChild_Id(familyMember.getId());
+		timeBalance.setPendingTimeInMinutes(timeBalance.getPendingTimeInMinutes() + weeklyTask.getMinutesReward());
 		weeklyTask.setToday(LocalDate.now().getDayOfWeek().name());
 		weeklyTask.setWasCompleateToday(true);
 		System.out.println("^^^^^^^weeklyTask.setWasCompleateToday(true);: " + weeklyTask.getWasCompleateToday());

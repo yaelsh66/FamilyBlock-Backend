@@ -6,4 +6,5 @@ import net.springprojectbackend.springboot.model.TimeSession;
 
 public interface TimeSessionRepository extends JpaRepository<TimeSession, Long> {
 
+	TimeSession findByChild_Id(Long childId);
 }

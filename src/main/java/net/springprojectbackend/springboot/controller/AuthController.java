@@ -50,11 +50,11 @@ public class AuthController {
 		Family family = familyMember.getFamily();
 		TimeBalance time = timeBalanceRepository.findByChild(familyMember);
 		
-		UserLoginResponse response = new UserLoginResponse(familyMember.getId(),  familyMember.getRole(), family.getId(),
-				user.getBackgroundImage(), user.getBackgroundColor(), time.getTotalTimeInMinutes(),
+		UserLoginResponse response = new UserLoginResponse(familyMember.getId(),  
+				familyMember.getRole(), family.getId(), user.getBackgroundImage(), 
+				user.getBackgroundColor(), time.getTotalTimeInMinutes() + time.getDailyTimeInMinutes(),
 				time.getPendingTimeInMinutes(), user.getNickname(), user.getFirstName());
 		
-		System.out.println("responseBODY = " + response);
 		return ResponseEntity.ok(response);
 		
 	}
@@ -84,7 +84,8 @@ public class AuthController {
 	}
 	
 	@PatchMapping("update_time")
-	public ResponseEntity<Void> updateTime(@RequestBody UpdateTimeRequest req, Authentication authentication){
+	public ResponseEntity<Void> updateTime(@RequestBody UpdateTimeRequest req, 
+			Authentication authentication){
 		
 		String uid = (String) authentication.getPrincipal();
 		FamilyMember familyMember = familyMemberRepository.findByFirebaseUid(uid);

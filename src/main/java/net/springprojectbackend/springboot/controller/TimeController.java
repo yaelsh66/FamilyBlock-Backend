@@ -31,6 +31,8 @@ import net.springprojectbackend.springboot.repository.DailyTimeRuleRepository;
 import net.springprojectbackend.springboot.repository.FamilyMemberRepository;
 import net.springprojectbackend.springboot.repository.TimeBalanceRepository;
 import net.springprojectbackend.springboot.repository.TimeScheduleRuleRepository;
+import net.springprojectbackend.springboot.repository.TimeSessionRepository;
+import net.springprojectbackend.springboot.repository.TimeTransactionRepository;
 
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -45,34 +47,56 @@ public class TimeController {
 	private final TimeBalanceRepository timeBalanceRepository;
 	private final DailyTimeRuleRepository dailyTimeRuleRepository;
 	private final TimeScheduleRuleRepository timeScheduleRuleRepository;
+	private final TimeTransactionRepository timeTransactionRepository;
+	private final TimeSessionRepository timeSessionRepository;
 	
-	public TimeController(TimeBalanceRepository timeBalanceRepository, DailyTimeRuleRepository dailyTimeRuleRepository, FamilyMemberRepository familyMemberRepository, TimeScheduleRuleRepository timeScheduleRuleRepository) {
+	public TimeController(TimeBalanceRepository timeBalanceRepository, DailyTimeRuleRepository dailyTimeRuleRepository, FamilyMemberRepository familyMemberRepository, TimeScheduleRuleRepository timeScheduleRuleRepository, TimeTransactionRepository timeTransactionRepository, TimeSessionRepository timeSessionRepository) {
 		this.timeBalanceRepository = timeBalanceRepository;
 		this.dailyTimeRuleRepository = dailyTimeRuleRepository;
 		this.familyMemberRepository = familyMemberRepository;
 		this.timeScheduleRuleRepository = timeScheduleRuleRepository;
+		this.timeTransactionRepository = timeTransactionRepository;
+		this.timeSessionRepository = timeSessionRepository;
 	}
+	
 	
 	@PatchMapping("add_time_to_child/{childId}")
 	public ResponseEntity<AddTimeToChildResponse> addTimeToChild(@PathVariable Long childId, 
 			@RequestBody AddTimeToChildRequest req, Authentication authentication){
+		FamilyMember familyMember = familyMemberRepository.getReferenceById(childId);
 		TimeBalance timeBalance = timeBalanceRepository.findByChild_Id(childId);
 		if(timeBalance == null) {
 			timeBalance = new TimeBalance();
+			timeBalance.setChild(familyMember);
 		}
-		if(timeBalance.getTotalTimeInMinutes() + req.time() >= 0) {
+		if(req.time() > 0) {
 			timeBalance.setTotalTimeInMinutes(timeBalance.getTotalTimeInMinutes() + req.time());
-			if(timeBalance.getIsRunning()) {
-				timeBalance.setWithdrawTime(timeBalance.getTotalTimeInMinutes());
+		}else {
+			if(timeBalance.getTotalTimeInMinutes() + timeBalance.getDailyTimeInMinutes() + req.time() >= 0) {
+				if(timeBalance.getDailyTimeInMinutes() + req.time() >= 0) {
+					timeBalance.setDailyTimeInMinutes(timeBalance.getDailyTimeInMinutes() + req.time());
+				}else {
+					Integer reduceTotal = timeBalance.getDailyTimeInMinutes() + req.time();
+					timeBalance.setDailyTimeInMinutes(0);
+					timeBalance.setTotalTimeInMinutes(timeBalance.getTotalTimeInMinutes() + reduceTotal);
+				}
 			}
-			timeBalance.setLastUpdate(LocalDateTime.now());
-			timeBalanceRepository.save(timeBalance);
-		}		
-		return ResponseEntity.ok(new AddTimeToChildResponse(timeBalance.getTotalTimeInMinutes()));
+		}
+		
+		if(timeBalance.getIsRunning()) {
+			timeBalance.setWithdrawTime(timeBalance.getWithdrawTime() + req.time());
+		}
+		timeBalance.setLastUpdate(LocalDateTime.now());
+		timeBalanceRepository.save(timeBalance);	
+			
+		
+		return ResponseEntity.ok(new AddTimeToChildResponse(timeBalance.getTotalTimeInMinutes() +
+				timeBalance.getDailyTimeInMinutes()));
 	}
 	
 	@PostMapping("update_daily_time/{childId}")
-	public ResponseEntity<Void> updateDailyTime(@PathVariable Long childId, @RequestBody UpdateDailyTimeRequest req, Authentication authentication){
+	public ResponseEntity<Void> updateDailyTime(@PathVariable Long childId, 
+			@RequestBody UpdateDailyTimeRequest req, Authentication authentication){
 		
 		List<DailyTimeRule> dailyTimeRuleList = dailyTimeRuleRepository.findAllByChild_Id(childId);
 				
