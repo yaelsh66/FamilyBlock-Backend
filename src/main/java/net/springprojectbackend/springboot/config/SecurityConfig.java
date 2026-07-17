@@ -3,6 +3,7 @@ package net.springprojectbackend.springboot.config;
 import java.util.List;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -15,7 +16,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import net.springprojectbackend.springboot.security.FirebaseAuthFilter;
 import org.springframework.http.HttpMethod;
 
-@Component
+@Configuration
 public class SecurityConfig {
 
 	private final FirebaseAuthFilter firebaseAuthFilter;
